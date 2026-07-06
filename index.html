@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>ماسح الطلبات - جاهز للتسليم</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg: #0b0f0d;
+    --panel: #131a17;
+    --panel-2: #1a2320;
+    --line: #24312c;
+    --text: #eaf2ee;
+    --muted: #8ea89c;
+    --accent: #38d97e;   /* جاهز - أخضر */
+    --accent-dim: #1f5c3f;
+    --warn: #e0a92f;     /* حالة غير متوقعة */
+    --danger: #e0524a;   /* خطأ */
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background: radial-gradient(1200px 800px at 50% -10%, #10241a 0%, var(--bg) 55%);
+    color: var(--text);
+    font-family: 'Tajawal', sans-serif;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding: 20px 14px 40px;
+  }
+  header{
+    width:100%;
+    max-width:480px;
+    text-align:center;
+    margin-bottom:18px;
+  }
+  header h1{
+    font-size:1.35rem;
+    font-weight:900;
+    letter-spacing:0.3px;
+  }
+  header p{
+    color: var(--muted);
+    font-size:0.85rem;
+    margin-top:4px;
+  }
+  .status-pill{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    background: var(--panel-2);
+    border:1px solid var(--line);
+    padding:5px 12px;
+    border-radius:999px;
+    font-size:0.78rem;
+    color: var(--muted);
+    margin-top:10px;
+  }
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--danger);}
+  .dot.live{background: var(--accent); box-shadow:0 0 8px var(--accent);}
+
+  #reader-wrap{
+    width:100%;
+    max-width:480px;
+    background: var(--panel);
+    border:1px solid var(--line);
+    border-radius:20px;
+    padding:14px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.35);
+  }
+  #reader{
+    width:100%;
+    border-radius:14px;
+    overflow:hidden;
+  }
+  #reader video{border-radius:14px;}
+
+  .hint{
+    text-align:center;
+    color:var(--muted);
+    font-size:0.8rem;
+    margin-top:12px;
+    line-height:1.6;
+  }
+
+  .result-card{
+    width:100%;
+    max-width:480px;
+    margin-top:18px;
+    background: var(--panel);
+    border:1px solid var(--line);
+    border-radius:18px;
+    padding:20px;
+    display:none;
+    animation: pop .25s ease;
+  }
+  @keyframes pop{ from{transform:scale(.96); opacity:0;} to{transform:scale(1); opacity:1;} }
+  .result-card.show{display:block;}
+  .result-card.ok{border-color: var(--accent-dim); background: linear-gradient(180deg, #14261c, var(--panel));}
+  .result-card.warn{border-color:#5c4a1f; background: linear-gradient(180deg, #26221a, var(--panel));}
+  .result-card.err{border-color:#5c2620; background: linear-gradient(180deg, #261a19, var(--panel));}
+
+  .result-badge{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    font-weight:900;
+    font-size:1.05rem;
+    margin-bottom:10px;
+  }
+  .result-badge .icon{font-size:1.3rem;}
+  .ok .result-badge{color:var(--accent);}
+  .warn .result-badge{color:var(--warn);}
+  .err .result-badge{color:var(--danger);}
+
+  .order-row{
+    display:flex;
+    justify-content:space-between;
+    padding:8px 0;
+    border-bottom:1px dashed var(--line);
+    font-size:0.92rem;
+  }
+  .order-row:last-child{border-bottom:none;}
+  .order-row span:first-child{color:var(--muted);}
+  .order-row span:last-child{font-weight:700;}
+
+  .scan-again{
+    width:100%;
+    margin-top:16px;
+    background: var(--accent);
+    color:#08150f;
+    border:none;
+    padding:13px;
+    border-radius:12px;
+    font-family:'Tajawal', sans-serif;
+    font-weight:900;
+    font-size:0.95rem;
+    cursor:pointer;
+  }
+  .scan-again:active{transform:scale(0.98);}
+
+  .log-link{
+    margin-top:22px;
+    color: var(--muted);
+    font-size:0.85rem;
+    text-decoration:none;
+    border-bottom:1px dashed var(--line);
+    padding-bottom:2px;
+  }
+  .log-link:hover{color:var(--text);}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📷 ماسح تسليم الطلبات</h1>
+  <p>وجّه الكاميرا نحو رمز QR الخاص بالطلب</p>
+  <div class="status-pill"><span class="dot" id="connDot"></span><span id="connText">جاري الاتصال بالسيرفر...</span></div>
+</header>
+
+<div id="reader-wrap">
+  <div id="reader"></div>
+</div>
+<p class="hint">لو الكاميرا ما ظهرت، تأكد من إذن الوصول للكاميرا في المتصفح.<br>الصفحة تحتاج فتح عبر https أو localhost.</p>
+
+<div class="result-card" id="resultCard">
+  <div class="result-badge"><span class="icon" id="resIcon">✅</span><span id="resTitle">تم التسليم</span></div>
+  <div class="order-row"><span>رقم الطلب</span><span id="resOrderNumber">—</span></div>
+  <div class="order-row"><span>العميل</span><span id="resCustomer">—</span></div>
+  <div class="order-row"><span>النوع</span><span id="resType">—</span></div>
+  <div class="order-row"><span>الإجمالي</span><span id="resTotal">—</span></div>
+  <button class="scan-again" id="scanAgainBtn">مسح طلب آخر</button>
+</div>
+
+<a class="log-link" href="scan_log.html">عرض سجل العملاء الممسوحين ←</a>
+
+<script>
+  // ====== إعدادات سوبابيز ======
+  const SUPABASE_URL = "https://zhxzrmrnhjdcmqzjigkk.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpoeHpybXJuaGpkY21xemppZ2trIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxOTAwMjgsImV4cCI6MjA5ODc2NjAyOH0.RepSFwT5LmGeM5Jor8IyScLIQfM2scvEKJRKsVPmcOI";
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const connDot = document.getElementById('connDot');
+  const connText = document.getElementById('connText');
+  const resultCard = document.getElementById('resultCard');
+  const resIcon = document.getElementById('resIcon');
+  const resTitle = document.getElementById('resTitle');
+  const resOrderNumber = document.getElementById('resOrderNumber');
+  const resCustomer = document.getElementById('resCustomer');
+  const resType = document.getElementById('resType');
+  const resTotal = document.getElementById('resTotal');
+  const scanAgainBtn = document.getElementById('scanAgainBtn');
+
+  let isProcessing = false; // يمنع معالجة نفس المسح أكثر من مرة
+  let html5QrCode;
+
+  // فحص الاتصال بسيرفر سوبابيز
+  async function checkConnection(){
+    const { error } = await sb.from('orders').select('id').limit(1);
+    if(error){
+      connDot.classList.remove('live');
+      connText.textContent = 'تعذر الاتصال بالسيرفر';
+    } else {
+      connDot.classList.add('live');
+      connText.textContent = 'متصل بالسيرفر';
+    }
+  }
+  checkConnection();
+
+  // يحاول استخراج order_id من نص الـ QR
+  // يدعم: UUID مباشر، أو JSON فيه order_id، أو رابط فيه ?order_id=...
+  function extractOrderId(decodedText){
+    const uuidPattern = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+    try{
+      const asJson = JSON.parse(decodedText);
+      if(asJson.order_id) return asJson.order_id;
+    }catch(e){ /* مش JSON، تجاهل */ }
+
+    try{
+      const asUrl = new URL(decodedText);
+      const fromParam = asUrl.searchParams.get('order_id');
+      if(fromParam) return fromParam;
+    }catch(e){ /* مش رابط، تجاهل */ }
+
+    const match = decodedText.match(uuidPattern);
+    if(match) return match[0];
+
+    return null;
+  }
+
+  function showResult(state, {orderNumber, customer, type, total}){
+    resultCard.classList.remove('ok','warn','err');
+    resultCard.classList.add(state, 'show');
+
+    if(state === 'ok'){
+      resIcon.textContent = '✅';
+      resTitle.textContent = 'تم تحديث الطلب إلى جاهز';
+    } else if(state === 'warn'){
+      resIcon.textContent = '⚠️';
+      resTitle.textContent = 'الطلب في حالة غير متوقعة';
+    } else {
+      resIcon.textContent = '❌';
+      resTitle.textContent = 'رمز غير صالح أو طلب غير موجود';
+    }
+
+    resOrderNumber.textContent = orderNumber ?? '—';
+    resCustomer.textContent = customer ?? '—';
+    resType.textContent = type ?? '—';
+    resTotal.textContent = total != null ? (total + ' ج.س') : '—';
+  }
+
+  async function handleScannedOrderId(orderId){
+    if(isProcessing) return;
+    isProcessing = true;
+
+    try{
+      // 1. جلب الطلب
+      const { data: order, error: fetchErr } = await sb
+        .from('orders')
+        .select('id, order_number, customer_name, customer_phone, order_type, status, total')
+        .eq('id', orderId)
+        .single();
+
+      if(fetchErr || !order){
+        showResult('err', {});
+        return;
+      }
+
+      // 2. تحقق من الحالة الحالية
+      if(order.status !== 'قيد التحضير'){
+        showResult('warn', {
+          orderNumber: order.order_number,
+          customer: order.customer_name || '—',
+          type: order.order_type,
+          total: order.total
+        });
+        return;
+      }
+
+      // 3. تحديث الحالة إلى جاهز
+      const { error: updateErr } = await sb
+        .from('orders')
+        .update({ status: 'جاهز' })
+        .eq('id', order.id);
+
+      if(updateErr){
+        showResult('err', {});
+        return;
+      }
+
+      // 4. تسجيل عملية المسح في scan_logs
+      await sb.from('scan_logs').insert({
+        order_id: order.id,
+        order_number: order.order_number,
+        customer_name: order.customer_name,
+        customer_phone: order.customer_phone,
+        order_type: order.order_type,
+        total: order.total
+      });
+
+      showResult('ok', {
+        orderNumber: order.order_number,
+        customer: order.customer_name || '—',
+        type: order.order_type,
+        total: order.total
+      });
+
+    }catch(e){
+      console.error(e);
+      showResult('err', {});
+    }
+  }
+
+  function onScanSuccess(decodedText){
+    if(isProcessing) return;
+    const orderId = extractOrderId(decodedText);
+    if(!orderId){
+      showResult('err', {});
+      return;
+    }
+    // إيقاف الكاميرا مؤقتاً أثناء المعالجة لتفادي مسح متكرر سريع
+    html5QrCode.pause(true);
+    handleScannedOrderId(orderId).finally(()=>{ /* تبقى موقوفة لحد ما يضغط "مسح طلب آخر" */ });
+  }
+
+  function startScanner(){
+    html5QrCode = new Html5Qrcode("reader");
+    html5QrCode.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: { width: 250, height: 250 } },
+      onScanSuccess
+    ).catch(err => {
+      connText.textContent = 'تعذر الوصول للكاميرا';
+      console.error(err);
+    });
+  }
+
+  scanAgainBtn.addEventListener('click', () => {
+    isProcessing = false;
+    resultCard.classList.remove('show');
+    if(html5QrCode) html5QrCode.resume();
+  });
+
+  startScanner();
+</script>
+</body>
+</html>
