@@ -392,21 +392,31 @@
   }
   checkConnection();
 
-  function extractOrderId(decodedText){
+  function extractOrderRef(decodedText){
+    const text = (decodedText || '').trim();
+
+    const sbMatch = text.match(/SB-0*([0-9]+)/i);
+    if(sbMatch) return { type:'order_number', value: parseInt(sbMatch[1], 10) };
+
+    try{
+      const asJson = JSON.parse(text);
+      if(asJson.order_id) return { type:'id', value: asJson.order_id };
+      if(asJson.order_number) return { type:'order_number', value: parseInt(asJson.order_number, 10) };
+    }catch(e){}
+
+    try{
+      const asUrl = new URL(text);
+      const fromId = asUrl.searchParams.get('order_id');
+      if(fromId) return { type:'id', value: fromId };
+      const fromNum = asUrl.searchParams.get('order_number');
+      if(fromNum) return { type:'order_number', value: parseInt(fromNum, 10) };
+    }catch(e){}
+
     const uuidPattern = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
-    try{
-      const asJson = JSON.parse(decodedText);
-      if(asJson.order_id) return asJson.order_id;
-    }catch(e){}
+    const uuidMatch = text.match(uuidPattern);
+    if(uuidMatch) return { type:'id', value: uuidMatch[0] };
 
-    try{
-      const asUrl = new URL(decodedText);
-      const fromParam = asUrl.searchParams.get('order_id');
-      if(fromParam) return fromParam;
-    }catch(e){}
-
-    const match = decodedText.match(uuidPattern);
-    if(match) return match[0];
+    if(/^\d+$/.test(text)) return { type:'order_number', value: parseInt(text, 10) };
 
     return null;
   }
@@ -432,16 +442,22 @@
     resTotal.textContent = total != null ? (total + ' ج.س') : '—';
   }
 
-  async function handleScannedOrderId(orderId){
+  async function handleScannedOrderId(orderRef){
     if(isProcessing) return;
     isProcessing = true;
 
     try{
-      const { data: order, error: fetchErr } = await sb
+      let query = sb
         .from('orders')
-        .select('id, order_number, customer_name, customer_phone, order_type, status, total')
-        .eq('id', orderId)
-        .single();
+        .select('id, order_number, customer_name, customer_phone, order_type, status, total');
+
+      if(orderRef.type === 'order_number'){
+        query = query.eq('order_number', orderRef.value);
+      } else {
+        query = query.eq('id', orderRef.value);
+      }
+
+      const { data: order, error: fetchErr } = await query.single();
 
       if(fetchErr || !order){
         showResult('err', {});
@@ -492,13 +508,13 @@
 
   function onScanSuccess(decodedText){
     if(isProcessing) return;
-    const orderId = extractOrderId(decodedText);
-    if(!orderId){
+    const orderRef = extractOrderRef(decodedText);
+    if(!orderRef){
       showResult('err', {});
       return;
     }
     html5QrCode.pause(true);
-    handleScannedOrderId(orderId).finally(()=>{});
+    handleScannedOrderId(orderRef).finally(()=>{});
   }
 
   function startScanner(){
