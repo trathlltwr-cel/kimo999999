@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>سجل العملاء الممسوحين</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg:#0b0f0d;
+    --panel:#131a17;
+    --panel-2:#1a2320;
+    --line:#24312c;
+    --text:#eaf2ee;
+    --muted:#8ea89c;
+    --accent:#38d97e;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background: radial-gradient(1200px 800px at 50% -10%, #10241a 0%, var(--bg) 55%);
+    color:var(--text);
+    font-family:'Tajawal', sans-serif;
+    min-height:100vh;
+    padding: 24px 16px 60px;
+  }
+  .wrap{max-width:820px; margin:0 auto;}
+  header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    flex-wrap:wrap;
+    gap:12px;
+    margin-bottom:18px;
+  }
+  header h1{font-size:1.4rem; font-weight:900;}
+  header p{color:var(--muted); font-size:0.85rem; margin-top:4px;}
+
+  .back-link{
+    color:var(--muted);
+    font-size:0.85rem;
+    text-decoration:none;
+    border:1px solid var(--line);
+    padding:8px 14px;
+    border-radius:10px;
+    background: var(--panel);
+  }
+  .back-link:hover{color:var(--text); border-color:var(--accent);}
+
+  .toolbar{
+    display:flex;
+    gap:10px;
+    margin-bottom:16px;
+    flex-wrap:wrap;
+  }
+  .toolbar input{
+    flex:1;
+    min-width:180px;
+    background: var(--panel);
+    border:1px solid var(--line);
+    color:var(--text);
+    padding:11px 14px;
+    border-radius:12px;
+    font-family:'Tajawal', sans-serif;
+    font-size:0.9rem;
+  }
+  .toolbar input:focus{outline:none; border-color:var(--accent);}
+
+  .stats{
+    display:grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap:10px;
+    margin-bottom:18px;
+  }
+  .stat-card{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:14px;
+    text-align:center;
+  }
+  .stat-card .num{font-size:1.4rem; font-weight:900; color:var(--accent);}
+  .stat-card .lbl{font-size:0.75rem; color:var(--muted); margin-top:2px;}
+
+  table{
+    width:100%;
+    border-collapse:collapse;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:16px;
+    overflow:hidden;
+  }
+  thead th{
+    background: var(--panel-2);
+    color:var(--muted);
+    font-size:0.78rem;
+    text-align:right;
+    padding:12px 14px;
+    font-weight:700;
+    border-bottom:1px solid var(--line);
+  }
+  tbody td{
+    padding:12px 14px;
+    font-size:0.88rem;
+    border-bottom:1px solid var(--line);
+  }
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background: rgba(56,217,126,0.04);}
+
+  .type-badge{
+    display:inline-block;
+    padding:3px 10px;
+    border-radius:999px;
+    font-size:0.75rem;
+    font-weight:700;
+  }
+  .type-محلي{background: rgba(56,217,126,0.12); color:var(--accent);}
+  .type-سفري{background: rgba(224,169,47,0.14); color:#e0a92f;}
+
+  .empty-state{
+    text-align:center;
+    padding:50px 20px;
+    color:var(--muted);
+  }
+  .empty-state .icon{font-size:2rem; margin-bottom:10px;}
+
+  @media (max-width:640px){
+    .stats{grid-template-columns:1fr 1fr;}
+    table, thead, tbody, th, td, tr{display:block;}
+    thead{display:none;}
+    tbody tr{
+      border-bottom:1px solid var(--line);
+      padding:10px 14px;
+    }
+    tbody td{
+      border:none;
+      padding:4px 0;
+      display:flex;
+      justify-content:space-between;
+    }
+    tbody td::before{
+      content: attr(data-label);
+      color:var(--muted);
+      font-size:0.78rem;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>📋 سجل العملاء الممسوحين</h1>
+      <p>كل طلب تم مسح الـ QR الخاص به وتحويله إلى "جاهز"</p>
+    </div>
+    <a class="back-link" href="scanner.html">← الرجوع للماسح</a>
+  </header>
+
+  <div class="stats">
+    <div class="stat-card"><div class="num" id="statTotal">0</div><div class="lbl">إجمالي المسح</div></div>
+    <div class="stat-card"><div class="num" id="statToday">0</div><div class="lbl">اليوم</div></div>
+    <div class="stat-card"><div class="num" id="statAmount">0</div><div class="lbl">مبالغ الطلبات (ج.س)</div></div>
+  </div>
+
+  <div class="toolbar">
+    <input type="text" id="searchInput" placeholder="ابحث باسم العميل أو رقم الطلب...">
+  </div>
+
+  <table id="logTable">
+    <thead>
+      <tr>
+        <th>رقم الطلب</th>
+        <th>العميل</th>
+        <th>الهاتف</th>
+        <th>النوع</th>
+        <th>الإجمالي</th>
+        <th>وقت المسح</th>
+      </tr>
+    </thead>
+    <tbody id="logBody"></tbody>
+  </table>
+
+  <div class="empty-state" id="emptyState" style="display:none;">
+    <div class="icon">🕊️</div>
+    <div>ما فيه أي عمليات مسح مسجلة لسه</div>
+  </div>
+</div>
+
+<script>
+  const SUPABASE_URL = "https://zhxzrmrnhjdcmqzjigkk.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpoeHpybXJuaGpkY21xemppZ2trIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxOTAwMjgsImV4cCI6MjA5ODc2NjAyOH0.RepSFwT5LmGeM5Jor8IyScLIQfM2scvEKJRKsVPmcOI";
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const logBody = document.getElementById('logBody');
+  const emptyState = document.getElementById('emptyState');
+  const searchInput = document.getElementById('searchInput');
+  const statTotal = document.getElementById('statTotal');
+  const statToday = document.getElementById('statToday');
+  const statAmount = document.getElementById('statAmount');
+
+  let allLogs = [];
+
+  function fmtTime(iso){
+    const d = new Date(iso);
+    return d.toLocaleString('ar-EG', { hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit' });
+  }
+
+  function isToday(iso){
+    const d = new Date(iso);
+    const now = new Date();
+    return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  }
+
+  function renderLogs(logs){
+    logBody.innerHTML = '';
+    if(logs.length === 0){
+      emptyState.style.display = 'block';
+      document.getElementById('logTable').style.display = 'none';
+      return;
+    }
+    emptyState.style.display = 'none';
+    document.getElementById('logTable').style.display = 'table';
+
+    for(const log of logs){
+      const tr = document.createElement('tr');
+      const typeClass = log.order_type === 'محلي' ? 'type-محلي' : 'type-سفري';
+      tr.innerHTML = `
+        <td data-label="رقم الطلب">#${log.order_number ?? '—'}</td>
+        <td data-label="العميل">${log.customer_name || '—'}</td>
+        <td data-label="الهاتف">${log.customer_phone || '—'}</td>
+        <td data-label="النوع"><span class="type-badge ${typeClass}">${log.order_type || '—'}</span></td>
+        <td data-label="الإجمالي">${log.total ?? 0} ج.س</td>
+        <td data-label="وقت المسح">${fmtTime(log.scanned_at)}</td>
+      `;
+      logBody.appendChild(tr);
+    }
+  }
+
+  function renderStats(logs){
+    statTotal.textContent = logs.length;
+    const todayCount = logs.filter(l => isToday(l.scanned_at)).length;
+    statToday.textContent = todayCount;
+    const totalAmount = logs.reduce((sum, l) => sum + (Number(l.total) || 0), 0);
+    statAmount.textContent = totalAmount.toLocaleString('en-US');
+  }
+
+  async function loadLogs(){
+    const { data, error } = await sb
+      .from('scan_logs')
+      .select('*')
+      .order('scanned_at', { ascending: false });
+
+    if(error){
+      console.error(error);
+      emptyState.textContent = 'تعذر تحميل السجل';
+      emptyState.style.display = 'block';
+      return;
+    }
+
+    allLogs = data || [];
+    renderLogs(allLogs);
+    renderStats(allLogs);
+  }
+
+  searchInput.addEventListener('input', () => {
+    const q = searchInput.value.trim().toLowerCase();
+    if(!q){
+      renderLogs(allLogs);
+      return;
+    }
+    const filtered = allLogs.filter(l =>
+      (l.customer_name || '').toLowerCase().includes(q) ||
+      String(l.order_number || '').includes(q) ||
+      (l.customer_phone || '').includes(q)
+    );
+    renderLogs(filtered);
+  });
+
+  // تحديث لحظي عند إضافة سجل مسح جديد (يتطلب تفعيل Realtime على جدول scan_logs)
+  sb.channel('scan_logs_changes')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'scan_logs' }, (payload) => {
+      allLogs.unshift(payload.new);
+      renderLogs(allLogs);
+      renderStats(allLogs);
+    })
+    .subscribe();
+
+  loadLogs();
+</script>
+</body>
+</html>
