@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>ماسح الطلبات - جاهز للتسليم</title>
+<title>ماسح الطلبات + سجل العملاء</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
@@ -30,13 +30,13 @@
     display:flex;
     flex-direction:column;
     align-items:center;
-    padding: 20px 14px 40px;
+    padding: 20px 14px 50px;
   }
   header{
     width:100%;
-    max-width:480px;
+    max-width:520px;
     text-align:center;
-    margin-bottom:18px;
+    margin-bottom:16px;
   }
   header h1{
     font-size:1.35rem;
@@ -63,9 +63,42 @@
   .dot{width:8px;height:8px;border-radius:50%;background:var(--danger);}
   .dot.live{background: var(--accent); box-shadow:0 0 8px var(--accent);}
 
+  /* ===== التبويبات ===== */
+  .tabs{
+    width:100%;
+    max-width:520px;
+    display:flex;
+    gap:8px;
+    background: var(--panel);
+    border:1px solid var(--line);
+    padding:6px;
+    border-radius:14px;
+    margin-bottom:18px;
+  }
+  .tab-btn{
+    flex:1;
+    background:transparent;
+    border:none;
+    color:var(--muted);
+    font-family:'Tajawal', sans-serif;
+    font-weight:700;
+    font-size:0.9rem;
+    padding:10px;
+    border-radius:10px;
+    cursor:pointer;
+    transition: background .15s, color .15s;
+  }
+  .tab-btn.active{
+    background: var(--accent);
+    color:#08150f;
+  }
+
+  .view{display:none; width:100%; max-width:520px;}
+  .view.active{display:block;}
+
+  /* ===== الماسح ===== */
   #reader-wrap{
     width:100%;
-    max-width:480px;
     background: var(--panel);
     border:1px solid var(--line);
     border-radius:20px;
@@ -89,7 +122,6 @@
 
   .result-card{
     width:100%;
-    max-width:480px;
     margin-top:18px;
     background: var(--panel);
     border:1px solid var(--line);
@@ -143,40 +175,167 @@
   }
   .scan-again:active{transform:scale(0.98);}
 
-  .log-link{
-    margin-top:22px;
-    color: var(--muted);
-    font-size:0.85rem;
-    text-decoration:none;
-    border-bottom:1px dashed var(--line);
-    padding-bottom:2px;
+  /* ===== السجل ===== */
+  .stats{
+    display:grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap:10px;
+    margin-bottom:16px;
   }
-  .log-link:hover{color:var(--text);}
+  .stat-card{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:14px;
+    text-align:center;
+  }
+  .stat-card .num{font-size:1.3rem; font-weight:900; color:var(--accent);}
+  .stat-card .lbl{font-size:0.72rem; color:var(--muted); margin-top:2px;}
+
+  .toolbar{
+    display:flex;
+    gap:10px;
+    margin-bottom:14px;
+    flex-wrap:wrap;
+  }
+  .toolbar input{
+    flex:1;
+    min-width:180px;
+    background: var(--panel);
+    border:1px solid var(--line);
+    color:var(--text);
+    padding:11px 14px;
+    border-radius:12px;
+    font-family:'Tajawal', sans-serif;
+    font-size:0.9rem;
+  }
+  .toolbar input:focus{outline:none; border-color:var(--accent);}
+
+  table{
+    width:100%;
+    border-collapse:collapse;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:16px;
+    overflow:hidden;
+  }
+  thead th{
+    background: var(--panel-2);
+    color:var(--muted);
+    font-size:0.76rem;
+    text-align:right;
+    padding:12px 14px;
+    font-weight:700;
+    border-bottom:1px solid var(--line);
+  }
+  tbody td{
+    padding:12px 14px;
+    font-size:0.86rem;
+    border-bottom:1px solid var(--line);
+  }
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background: rgba(56,217,126,0.04);}
+
+  .type-badge{
+    display:inline-block;
+    padding:3px 10px;
+    border-radius:999px;
+    font-size:0.75rem;
+    font-weight:700;
+  }
+  .type-محلي{background: rgba(56,217,126,0.12); color:var(--accent);}
+  .type-سفري{background: rgba(224,169,47,0.14); color:#e0a92f;}
+
+  .empty-state{
+    text-align:center;
+    padding:50px 20px;
+    color:var(--muted);
+  }
+  .empty-state .icon{font-size:2rem; margin-bottom:10px;}
+
+  @media (max-width:640px){
+    .stats{grid-template-columns:1fr 1fr;}
+    table, thead, tbody, th, td, tr{display:block;}
+    thead{display:none;}
+    tbody tr{
+      border-bottom:1px solid var(--line);
+      padding:10px 14px;
+    }
+    tbody td{
+      border:none;
+      padding:4px 0;
+      display:flex;
+      justify-content:space-between;
+    }
+    tbody td::before{
+      content: attr(data-label);
+      color:var(--muted);
+      font-size:0.78rem;
+    }
+  }
 </style>
 </head>
 <body>
 
 <header>
   <h1>📷 ماسح تسليم الطلبات</h1>
-  <p>وجّه الكاميرا نحو رمز QR الخاص بالطلب</p>
+  <p>وجّه الكاميرا نحو رمز QR الخاص بالطلب — أو راجع سجل العمليات</p>
   <div class="status-pill"><span class="dot" id="connDot"></span><span id="connText">جاري الاتصال بالسيرفر...</span></div>
 </header>
 
-<div id="reader-wrap">
-  <div id="reader"></div>
-</div>
-<p class="hint">لو الكاميرا ما ظهرت، تأكد من إذن الوصول للكاميرا في المتصفح.<br>الصفحة تحتاج فتح عبر https أو localhost.</p>
-
-<div class="result-card" id="resultCard">
-  <div class="result-badge"><span class="icon" id="resIcon">✅</span><span id="resTitle">تم التسليم</span></div>
-  <div class="order-row"><span>رقم الطلب</span><span id="resOrderNumber">—</span></div>
-  <div class="order-row"><span>العميل</span><span id="resCustomer">—</span></div>
-  <div class="order-row"><span>النوع</span><span id="resType">—</span></div>
-  <div class="order-row"><span>الإجمالي</span><span id="resTotal">—</span></div>
-  <button class="scan-again" id="scanAgainBtn">مسح طلب آخر</button>
+<div class="tabs">
+  <button class="tab-btn active" id="tabScannerBtn">📷 الماسح</button>
+  <button class="tab-btn" id="tabLogBtn">📋 السجل</button>
 </div>
 
-<a class="log-link" href="scan_log.html">عرض سجل العملاء الممسوحين ←</a>
+<!-- ===== تبويب الماسح ===== -->
+<div class="view active" id="viewScanner">
+  <div id="reader-wrap">
+    <div id="reader"></div>
+  </div>
+  <p class="hint">لو الكاميرا ما ظهرت، تأكد من إذن الوصول للكاميرا في المتصفح.<br>الصفحة تحتاج فتح عبر https أو localhost.</p>
+
+  <div class="result-card" id="resultCard">
+    <div class="result-badge"><span class="icon" id="resIcon">✅</span><span id="resTitle">تم التسليم</span></div>
+    <div class="order-row"><span>رقم الطلب</span><span id="resOrderNumber">—</span></div>
+    <div class="order-row"><span>العميل</span><span id="resCustomer">—</span></div>
+    <div class="order-row"><span>النوع</span><span id="resType">—</span></div>
+    <div class="order-row"><span>الإجمالي</span><span id="resTotal">—</span></div>
+    <button class="scan-again" id="scanAgainBtn">مسح طلب آخر</button>
+  </div>
+</div>
+
+<!-- ===== تبويب السجل ===== -->
+<div class="view" id="viewLog">
+  <div class="stats">
+    <div class="stat-card"><div class="num" id="statTotal">0</div><div class="lbl">إجمالي المسح</div></div>
+    <div class="stat-card"><div class="num" id="statToday">0</div><div class="lbl">اليوم</div></div>
+    <div class="stat-card"><div class="num" id="statAmount">0</div><div class="lbl">مبالغ الطلبات (ج.س)</div></div>
+  </div>
+
+  <div class="toolbar">
+    <input type="text" id="searchInput" placeholder="ابحث باسم العميل أو رقم الطلب...">
+  </div>
+
+  <table id="logTable">
+    <thead>
+      <tr>
+        <th>رقم الطلب</th>
+        <th>العميل</th>
+        <th>الهاتف</th>
+        <th>النوع</th>
+        <th>الإجمالي</th>
+        <th>وقت المسح</th>
+      </tr>
+    </thead>
+    <tbody id="logBody"></tbody>
+  </table>
+
+  <div class="empty-state" id="emptyState" style="display:none;">
+    <div class="icon">🕊️</div>
+    <div>ما فيه أي عمليات مسح مسجلة لسه</div>
+  </div>
+</div>
 
 <script>
   // ====== إعدادات سوبابيز ======
@@ -184,6 +343,29 @@
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpoeHpybXJuaGpkY21xemppZ2trIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxOTAwMjgsImV4cCI6MjA5ODc2NjAyOH0.RepSFwT5LmGeM5Jor8IyScLIQfM2scvEKJRKsVPmcOI";
   const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+  /* ============ التبويبات ============ */
+  const tabScannerBtn = document.getElementById('tabScannerBtn');
+  const tabLogBtn = document.getElementById('tabLogBtn');
+  const viewScanner = document.getElementById('viewScanner');
+  const viewLog = document.getElementById('viewLog');
+
+  function goToScanner(){
+    tabScannerBtn.classList.add('active');
+    tabLogBtn.classList.remove('active');
+    viewScanner.classList.add('active');
+    viewLog.classList.remove('active');
+  }
+  function goToLog(){
+    tabLogBtn.classList.add('active');
+    tabScannerBtn.classList.remove('active');
+    viewLog.classList.add('active');
+    viewScanner.classList.remove('active');
+    loadLogs(); // تحديث السجل كل ما نفتح التبويب
+  }
+  tabScannerBtn.addEventListener('click', goToScanner);
+  tabLogBtn.addEventListener('click', goToLog);
+
+  /* ============ عناصر الماسح ============ */
   const connDot = document.getElementById('connDot');
   const connText = document.getElementById('connText');
   const resultCard = document.getElementById('resultCard');
@@ -195,10 +377,9 @@
   const resTotal = document.getElementById('resTotal');
   const scanAgainBtn = document.getElementById('scanAgainBtn');
 
-  let isProcessing = false; // يمنع معالجة نفس المسح أكثر من مرة
+  let isProcessing = false;
   let html5QrCode;
 
-  // فحص الاتصال بسيرفر سوبابيز
   async function checkConnection(){
     const { error } = await sb.from('orders').select('id').limit(1);
     if(error){
@@ -211,20 +392,18 @@
   }
   checkConnection();
 
-  // يحاول استخراج order_id من نص الـ QR
-  // يدعم: UUID مباشر، أو JSON فيه order_id، أو رابط فيه ?order_id=...
   function extractOrderId(decodedText){
     const uuidPattern = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
     try{
       const asJson = JSON.parse(decodedText);
       if(asJson.order_id) return asJson.order_id;
-    }catch(e){ /* مش JSON، تجاهل */ }
+    }catch(e){}
 
     try{
       const asUrl = new URL(decodedText);
       const fromParam = asUrl.searchParams.get('order_id');
       if(fromParam) return fromParam;
-    }catch(e){ /* مش رابط، تجاهل */ }
+    }catch(e){}
 
     const match = decodedText.match(uuidPattern);
     if(match) return match[0];
@@ -258,7 +437,6 @@
     isProcessing = true;
 
     try{
-      // 1. جلب الطلب
       const { data: order, error: fetchErr } = await sb
         .from('orders')
         .select('id, order_number, customer_name, customer_phone, order_type, status, total')
@@ -270,7 +448,6 @@
         return;
       }
 
-      // 2. تحقق من الحالة الحالية
       if(order.status !== 'قيد التحضير'){
         showResult('warn', {
           orderNumber: order.order_number,
@@ -281,7 +458,6 @@
         return;
       }
 
-      // 3. تحديث الحالة إلى جاهز
       const { error: updateErr } = await sb
         .from('orders')
         .update({ status: 'جاهز' })
@@ -292,7 +468,6 @@
         return;
       }
 
-      // 4. تسجيل عملية المسح في scan_logs
       await sb.from('scan_logs').insert({
         order_id: order.id,
         order_number: order.order_number,
@@ -322,9 +497,8 @@
       showResult('err', {});
       return;
     }
-    // إيقاف الكاميرا مؤقتاً أثناء المعالجة لتفادي مسح متكرر سريع
     html5QrCode.pause(true);
-    handleScannedOrderId(orderId).finally(()=>{ /* تبقى موقوفة لحد ما يضغط "مسح طلب آخر" */ });
+    handleScannedOrderId(orderId).finally(()=>{});
   }
 
   function startScanner(){
@@ -346,6 +520,104 @@
   });
 
   startScanner();
+
+  /* ============ عناصر السجل ============ */
+  const logBody = document.getElementById('logBody');
+  const emptyState = document.getElementById('emptyState');
+  const searchInput = document.getElementById('searchInput');
+  const statTotal = document.getElementById('statTotal');
+  const statToday = document.getElementById('statToday');
+  const statAmount = document.getElementById('statAmount');
+
+  let allLogs = [];
+
+  function fmtTime(iso){
+    const d = new Date(iso);
+    return d.toLocaleString('ar-EG', { hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit' });
+  }
+
+  function isToday(iso){
+    const d = new Date(iso);
+    const now = new Date();
+    return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  }
+
+  function renderLogs(logs){
+    logBody.innerHTML = '';
+    if(logs.length === 0){
+      emptyState.style.display = 'block';
+      document.getElementById('logTable').style.display = 'none';
+      return;
+    }
+    emptyState.style.display = 'none';
+    document.getElementById('logTable').style.display = 'table';
+
+    for(const log of logs){
+      const tr = document.createElement('tr');
+      const typeClass = log.order_type === 'محلي' ? 'type-محلي' : 'type-سفري';
+      tr.innerHTML = `
+        <td data-label="رقم الطلب">#${log.order_number ?? '—'}</td>
+        <td data-label="العميل">${log.customer_name || '—'}</td>
+        <td data-label="الهاتف">${log.customer_phone || '—'}</td>
+        <td data-label="النوع"><span class="type-badge ${typeClass}">${log.order_type || '—'}</span></td>
+        <td data-label="الإجمالي">${log.total ?? 0} ج.س</td>
+        <td data-label="وقت المسح">${fmtTime(log.scanned_at)}</td>
+      `;
+      logBody.appendChild(tr);
+    }
+  }
+
+  function renderStats(logs){
+    statTotal.textContent = logs.length;
+    const todayCount = logs.filter(l => isToday(l.scanned_at)).length;
+    statToday.textContent = todayCount;
+    const totalAmount = logs.reduce((sum, l) => sum + (Number(l.total) || 0), 0);
+    statAmount.textContent = totalAmount.toLocaleString('en-US');
+  }
+
+  async function loadLogs(){
+    const { data, error } = await sb
+      .from('scan_logs')
+      .select('*')
+      .order('scanned_at', { ascending: false });
+
+    if(error){
+      console.error(error);
+      emptyState.textContent = 'تعذر تحميل السجل';
+      emptyState.style.display = 'block';
+      return;
+    }
+
+    allLogs = data || [];
+    renderLogs(allLogs);
+    renderStats(allLogs);
+  }
+
+  searchInput.addEventListener('input', () => {
+    const q = searchInput.value.trim().toLowerCase();
+    if(!q){
+      renderLogs(allLogs);
+      return;
+    }
+    const filtered = allLogs.filter(l =>
+      (l.customer_name || '').toLowerCase().includes(q) ||
+      String(l.order_number || '').includes(q) ||
+      (l.customer_phone || '').includes(q)
+    );
+    renderLogs(filtered);
+  });
+
+  // تحديث لحظي عند إضافة سجل مسح جديد (يتطلب تفعيل Realtime على جدول scan_logs)
+  sb.channel('scan_logs_changes')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'scan_logs' }, (payload) => {
+      allLogs.unshift(payload.new);
+      renderLogs(allLogs);
+      renderStats(allLogs);
+    })
+    .subscribe();
+
+  // تحميل مبدئي للسجل (حتى لو ما فتحنا التبويب بعد)
+  loadLogs();
 </script>
 </body>
 </html>
