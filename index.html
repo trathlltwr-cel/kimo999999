@@ -134,6 +134,8 @@
   .result-card.show{display:block;}
   .result-card.ok{border-color: var(--accent-dim); background: linear-gradient(180deg, #14261c, var(--panel));}
   .result-card.warn{border-color:#5c4a1f; background: linear-gradient(180deg, #26221a, var(--panel));}
+  .result-card.confirm{border-color:#5c4a1f; background: linear-gradient(180deg, #26221a, var(--panel));}
+  .result-card.ignored{border-color: var(--line); background: linear-gradient(180deg, #171f1c, var(--panel));}
   .result-card.err{border-color:#5c2620; background: linear-gradient(180deg, #261a19, var(--panel));}
 
   .result-badge{
@@ -147,6 +149,8 @@
   .result-badge .icon{font-size:1.3rem;}
   .ok .result-badge{color:var(--accent);}
   .warn .result-badge{color:var(--warn);}
+  .confirm .result-badge{color:var(--warn);}
+  .ignored .result-badge{color:var(--muted);}
   .err .result-badge{color:var(--danger);}
 
   .order-row{
@@ -174,6 +178,25 @@
     cursor:pointer;
   }
   .scan-again:active{transform:scale(0.98);}
+
+  .confirm-actions{
+    display:flex;
+    gap:10px;
+    margin-top:16px;
+  }
+  .confirm-actions button{
+    flex:1;
+    padding:13px;
+    border-radius:12px;
+    font-family:'Tajawal', sans-serif;
+    font-weight:900;
+    font-size:0.95rem;
+    cursor:pointer;
+    border:none;
+  }
+  .approve-btn{background: var(--accent); color:#08150f;}
+  .ignore-btn{background:transparent; border:1.5px solid var(--danger)!important; color:var(--danger);}
+  .confirm-actions button:active{transform:scale(0.98);}
 
   /* ===== السجل ===== */
   .stats{
@@ -245,6 +268,8 @@
   }
   .type-محلي{background: rgba(56,217,126,0.12); color:var(--accent);}
   .type-سفري{background: rgba(224,169,47,0.14); color:#e0a92f;}
+  .action-approved{background: rgba(56,217,126,0.12); color:var(--accent);}
+  .action-ignored{background: rgba(224,82,74,0.14); color:var(--danger);}
 
   .empty-state{
     text-align:center;
@@ -301,6 +326,10 @@
     <div class="order-row"><span>العميل</span><span id="resCustomer">—</span></div>
     <div class="order-row"><span>النوع</span><span id="resType">—</span></div>
     <div class="order-row"><span>الإجمالي</span><span id="resTotal">—</span></div>
+    <div class="confirm-actions" id="confirmActions" style="display:none;">
+      <button class="approve-btn" id="approveBtn">✅ موافقة</button>
+      <button class="ignore-btn" id="ignoreBtn">🚫 تجاهل</button>
+    </div>
     <button class="scan-again" id="scanAgainBtn">مسح طلب آخر</button>
   </div>
 </div>
@@ -325,6 +354,7 @@
         <th>الهاتف</th>
         <th>النوع</th>
         <th>الإجمالي</th>
+        <th>الإجراء</th>
         <th>وقت المسح</th>
       </tr>
     </thead>
@@ -376,6 +406,11 @@
   const resType = document.getElementById('resType');
   const resTotal = document.getElementById('resTotal');
   const scanAgainBtn = document.getElementById('scanAgainBtn');
+  const confirmActions = document.getElementById('confirmActions');
+  const approveBtn = document.getElementById('approveBtn');
+  const ignoreBtn = document.getElementById('ignoreBtn');
+
+  let pendingOrder = null;
 
   let isProcessing = false;
   let html5QrCode;
@@ -422,12 +457,18 @@
   }
 
   function showResult(state, {orderNumber, customer, type, total}){
-    resultCard.classList.remove('ok','warn','err');
+    resultCard.classList.remove('ok','warn','err','confirm','ignored');
     resultCard.classList.add(state, 'show');
+    confirmActions.style.display = 'none';
+    scanAgainBtn.style.display = 'block';
+    pendingOrder = null;
 
     if(state === 'ok'){
       resIcon.textContent = '✅';
-      resTitle.textContent = 'تم تحديث الطلب إلى جاهز';
+      resTitle.textContent = 'تمت الموافقة وتحديث الطلب لجاهز';
+    } else if(state === 'ignored'){
+      resIcon.textContent = '🚫';
+      resTitle.textContent = 'تم تجاهل الطلب';
     } else if(state === 'warn'){
       resIcon.textContent = '⚠️';
       resTitle.textContent = 'الطلب في حالة غير متوقعة';
@@ -440,6 +481,20 @@
     resCustomer.textContent = customer ?? '—';
     resType.textContent = type ?? '—';
     resTotal.textContent = total != null ? (total + ' ج.س') : '—';
+  }
+
+  function showConfirm(order){
+    resultCard.classList.remove('ok','warn','err','ignored');
+    resultCard.classList.add('confirm', 'show');
+    resIcon.textContent = '📋';
+    resTitle.textContent = 'راجع الطلب واختار';
+    resOrderNumber.textContent = order.order_number ?? '—';
+    resCustomer.textContent = order.customer_name || '—';
+    resType.textContent = order.order_type ?? '—';
+    resTotal.textContent = (order.total ?? 0) + ' ج.س';
+    confirmActions.style.display = 'flex';
+    scanAgainBtn.style.display = 'none';
+    pendingOrder = order;
   }
 
   async function handleScannedOrderId(orderRef){
@@ -464,41 +519,7 @@
         return;
       }
 
-      if(order.status !== 'قيد التحضير'){
-        showResult('warn', {
-          orderNumber: order.order_number,
-          customer: order.customer_name || '—',
-          type: order.order_type,
-          total: order.total
-        });
-        return;
-      }
-
-      const { error: updateErr } = await sb
-        .from('orders')
-        .update({ status: 'جاهز' })
-        .eq('id', order.id);
-
-      if(updateErr){
-        showResult('err', {});
-        return;
-      }
-
-      await sb.from('scan_logs').insert({
-        order_id: order.id,
-        order_number: order.order_number,
-        customer_name: order.customer_name,
-        customer_phone: order.customer_phone,
-        order_type: order.order_type,
-        total: order.total
-      });
-
-      showResult('ok', {
-        orderNumber: order.order_number,
-        customer: order.customer_name || '—',
-        type: order.order_type,
-        total: order.total
-      });
+      showConfirm(order);
 
     }catch(e){
       console.error(e);
@@ -533,6 +554,74 @@
     isProcessing = false;
     resultCard.classList.remove('show');
     if(html5QrCode) html5QrCode.resume();
+  });
+
+  approveBtn.addEventListener('click', async () => {
+    if(!pendingOrder) return;
+    const order = pendingOrder;
+    approveBtn.disabled = true; ignoreBtn.disabled = true;
+    try{
+      const { error: updateErr } = await sb
+        .from('orders')
+        .update({ status: 'جاهز' })
+        .eq('id', order.id);
+
+      if(updateErr){
+        showResult('err', {});
+        return;
+      }
+
+      await sb.from('scan_logs').insert({
+        order_id: order.id,
+        order_number: order.order_number,
+        customer_name: order.customer_name,
+        customer_phone: order.customer_phone,
+        order_type: order.order_type,
+        total: order.total,
+        action: 'موافقة'
+      });
+
+      showResult('ok', {
+        orderNumber: order.order_number,
+        customer: order.customer_name || '—',
+        type: order.order_type,
+        total: order.total
+      });
+    }catch(e){
+      console.error(e);
+      showResult('err', {});
+    }finally{
+      approveBtn.disabled = false; ignoreBtn.disabled = false;
+    }
+  });
+
+  ignoreBtn.addEventListener('click', async () => {
+    if(!pendingOrder) return;
+    const order = pendingOrder;
+    approveBtn.disabled = true; ignoreBtn.disabled = true;
+    try{
+      await sb.from('scan_logs').insert({
+        order_id: order.id,
+        order_number: order.order_number,
+        customer_name: order.customer_name,
+        customer_phone: order.customer_phone,
+        order_type: order.order_type,
+        total: order.total,
+        action: 'تجاهل'
+      });
+
+      showResult('ignored', {
+        orderNumber: order.order_number,
+        customer: order.customer_name || '—',
+        type: order.order_type,
+        total: order.total
+      });
+    }catch(e){
+      console.error(e);
+      showResult('err', {});
+    }finally{
+      approveBtn.disabled = false; ignoreBtn.disabled = false;
+    }
   });
 
   startScanner();
@@ -571,12 +660,15 @@
     for(const log of logs){
       const tr = document.createElement('tr');
       const typeClass = log.order_type === 'محلي' ? 'type-محلي' : 'type-سفري';
+      const action = log.action || 'موافقة';
+      const actionClass = action === 'تجاهل' ? 'action-ignored' : 'action-approved';
       tr.innerHTML = `
         <td data-label="رقم الطلب">#${log.order_number ?? '—'}</td>
         <td data-label="العميل">${log.customer_name || '—'}</td>
         <td data-label="الهاتف">${log.customer_phone || '—'}</td>
         <td data-label="النوع"><span class="type-badge ${typeClass}">${log.order_type || '—'}</span></td>
         <td data-label="الإجمالي">${log.total ?? 0} ج.س</td>
+        <td data-label="الإجراء"><span class="type-badge ${actionClass}">${action === 'تجاهل' ? '🚫 تجاهل' : '✅ موافقة'}</span></td>
         <td data-label="وقت المسح">${fmtTime(log.scanned_at)}</td>
       `;
       logBody.appendChild(tr);
