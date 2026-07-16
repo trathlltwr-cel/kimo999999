@@ -164,6 +164,27 @@
   .order-row span:first-child{color:var(--muted);}
   .order-row span:last-child{font-weight:700;}
 
+  .items-section{
+    margin-top:12px;
+    padding-top:12px;
+    border-top:1px dashed var(--line);
+  }
+  .items-section .items-title{
+    color:var(--muted);
+    font-size:0.82rem;
+    margin-bottom:8px;
+    font-weight:700;
+  }
+  .items-section .item-row{
+    display:flex;
+    justify-content:space-between;
+    font-size:0.88rem;
+    padding:5px 0;
+  }
+  .items-section .item-row span:first-child{color:var(--text);}
+  .items-section .item-row span:last-child{color:var(--muted); font-weight:700;}
+  .items-section .items-empty{color:var(--muted); font-size:0.82rem;}
+
   .scan-again{
     width:100%;
     margin-top:16px;
@@ -324,8 +345,14 @@
     <div class="result-badge"><span class="icon" id="resIcon">✅</span><span id="resTitle">تم التسليم</span></div>
     <div class="order-row"><span>رقم الطلب</span><span id="resOrderNumber">—</span></div>
     <div class="order-row"><span>العميل</span><span id="resCustomer">—</span></div>
+    <div class="order-row"><span>الهاتف</span><span id="resPhone">—</span></div>
     <div class="order-row"><span>النوع</span><span id="resType">—</span></div>
+    <div class="order-row" id="resLocationRow" style="display:none;"><span id="resLocationLabel">الطاولة</span><span id="resLocation">—</span></div>
     <div class="order-row"><span>الإجمالي</span><span id="resTotal">—</span></div>
+    <div class="items-section" id="resItemsSection" style="display:none;">
+      <div class="items-title">🧾 الأصناف المطلوبة</div>
+      <div id="resItemsList"></div>
+    </div>
     <div class="confirm-actions" id="confirmActions" style="display:none;">
       <button class="approve-btn" id="approveBtn">✅ موافقة</button>
       <button class="ignore-btn" id="ignoreBtn">🚫 تجاهل</button>
@@ -403,14 +430,21 @@
   const resTitle = document.getElementById('resTitle');
   const resOrderNumber = document.getElementById('resOrderNumber');
   const resCustomer = document.getElementById('resCustomer');
+  const resPhone = document.getElementById('resPhone');
   const resType = document.getElementById('resType');
   const resTotal = document.getElementById('resTotal');
+  const resLocationRow = document.getElementById('resLocationRow');
+  const resLocationLabel = document.getElementById('resLocationLabel');
+  const resLocation = document.getElementById('resLocation');
+  const resItemsSection = document.getElementById('resItemsSection');
+  const resItemsList = document.getElementById('resItemsList');
   const scanAgainBtn = document.getElementById('scanAgainBtn');
   const confirmActions = document.getElementById('confirmActions');
   const approveBtn = document.getElementById('approveBtn');
   const ignoreBtn = document.getElementById('ignoreBtn');
 
   let pendingOrder = null;
+  let pendingItems = null;
 
   let isProcessing = false;
   let html5QrCode;
@@ -456,12 +490,39 @@
     return null;
   }
 
-  function showResult(state, {orderNumber, customer, type, total}){
+  function renderLocation(type, order){
+    if(type === 'محلي'){
+      resLocationLabel.textContent = 'الطاولة';
+      resLocation.textContent = order?.table_number ?? '—';
+      resLocationRow.style.display = 'flex';
+    } else if(type === 'سفري'){
+      resLocationLabel.textContent = 'العنوان';
+      resLocation.textContent = order?.delivery_address || '—';
+      resLocationRow.style.display = 'flex';
+    } else {
+      resLocationRow.style.display = 'none';
+    }
+  }
+
+  function renderItems(items){
+    if(!items || items.length === 0){
+      resItemsSection.style.display = 'none';
+      resItemsList.innerHTML = '';
+      return;
+    }
+    resItemsSection.style.display = 'block';
+    resItemsList.innerHTML = items.map(i => `
+      <div class="item-row"><span>${i.item_name} × ${i.quantity}</span><span>${Number(i.subtotal ?? 0).toLocaleString()} ج.س</span></div>
+    `).join('');
+  }
+
+  function showResult(state, {orderNumber, customer, phone, type, total, order, items}){
     resultCard.classList.remove('ok','warn','err','confirm','ignored');
     resultCard.classList.add(state, 'show');
     confirmActions.style.display = 'none';
     scanAgainBtn.style.display = 'block';
     pendingOrder = null;
+    pendingItems = null;
 
     if(state === 'ok'){
       resIcon.textContent = '✅';
@@ -479,22 +540,29 @@
 
     resOrderNumber.textContent = orderNumber ?? '—';
     resCustomer.textContent = customer ?? '—';
+    resPhone.textContent = phone || '—';
     resType.textContent = type ?? '—';
     resTotal.textContent = total != null ? (total + ' ج.س') : '—';
+    renderLocation(type, order);
+    renderItems(items);
   }
 
-  function showConfirm(order){
+  function showConfirm(order, items){
     resultCard.classList.remove('ok','warn','err','ignored');
     resultCard.classList.add('confirm', 'show');
     resIcon.textContent = '📋';
     resTitle.textContent = 'راجع الطلب واختار';
     resOrderNumber.textContent = order.order_number ?? '—';
     resCustomer.textContent = order.customer_name || '—';
+    resPhone.textContent = order.customer_phone || '—';
     resType.textContent = order.order_type ?? '—';
     resTotal.textContent = (order.total ?? 0) + ' ج.س';
+    renderLocation(order.order_type, order);
+    renderItems(items);
     confirmActions.style.display = 'flex';
     scanAgainBtn.style.display = 'none';
     pendingOrder = order;
+    pendingItems = items;
   }
 
   async function handleScannedOrderId(orderRef){
@@ -504,7 +572,7 @@
     try{
       let query = sb
         .from('orders')
-        .select('id, order_number, customer_name, customer_phone, order_type, status, total');
+        .select('id, order_number, customer_name, customer_phone, order_type, status, total, table_number, delivery_address');
 
       if(orderRef.type === 'order_number'){
         query = query.eq('order_number', orderRef.value);
@@ -519,7 +587,14 @@
         return;
       }
 
-      showConfirm(order);
+      const { data: items, error: itemsErr } = await sb
+        .from('order_items')
+        .select('item_name, quantity, subtotal')
+        .eq('order_id', order.id);
+
+      if(itemsErr) console.error(itemsErr);
+
+      showConfirm(order, items || []);
 
     }catch(e){
       console.error(e);
@@ -584,8 +659,11 @@
       showResult('ok', {
         orderNumber: order.order_number,
         customer: order.customer_name || '—',
+        phone: order.customer_phone,
         type: order.order_type,
-        total: order.total
+        total: order.total,
+        order: order,
+        items: pendingItems
       });
     }catch(e){
       console.error(e);
@@ -613,8 +691,11 @@
       showResult('ignored', {
         orderNumber: order.order_number,
         customer: order.customer_name || '—',
+        phone: order.customer_phone,
         type: order.order_type,
-        total: order.total
+        total: order.total,
+        order: order,
+        items: pendingItems
       });
     }catch(e){
       console.error(e);
